@@ -51,10 +51,10 @@ export function score(a, b) {
   return both / new Set([...sa, ...sb]).size;
 }
 
-// a MediaWiki API call from the browser (origin=*: the wikis allow it), at most one a second per wiki
+// a MediaWiki API call from the browser (origin=*: the wikis allow it), one at a time, a quarter second apart per wiki
 const last = new Map();
 export async function api(base, params, fetchFn = fetch) {
-  const wait = 1000 - (Date.now() - (last.get(base) || 0));
+  const wait = 250 - (Date.now() - (last.get(base) || 0));
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   last.set(base, Date.now());
   const q = new URLSearchParams({ ...params, format: "json", origin: "*" });
