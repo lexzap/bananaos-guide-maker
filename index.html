@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Make walkthrough guides for BananaOS's second-screen Guide from StrategyWiki and free game wikis, in your browser: one zip for the card.">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>BananaOS Guide Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: the handheld's two screens: a "top screen" card that says what happens, a "bottom screen" of tiles you work in. Dark first, like BananaOS. */
+:root {
+  --ground: #0b0a0d;      /* behind the screens */
+  --screen: #17161c;      /* a screen's face */
+  --tile: #1e1c23;        /* a tile on it */
+  --line: #e8e2d3;        /* the cream frame around tiles */
+  --text: #f1ede2;
+  --muted: #a39d8e;
+  --banana: #f0b429;      /* the menu's yellow */
+  --banana-hi: #ffe68a;
+  --banana-ink: #1f1405;  /* text on yellow */
+  --banana-deep: #8a5a00;
+  --ok: #8fcf6a;
+  --warn: #f2a23a;
+  --bad: #ef6f5e;
+  --rule: #38333b;
+  --display: "Pixelify Sans", "Silkscreen", ui-monospace, monospace;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #e6dfd0; --screen: #fdfcf9; --tile: #f6f2ea; --line: #3a342c; --text: #2a2620; --muted: #7a7262;
+    --banana: #f0b429; --banana-hi: #ffe68a; --banana-ink: #1f1405; --banana-deep: #8a5a00;
+    --ok: #3f7d1f; --warn: #a35d00; --bad: #b8321f; --rule: #d6cfc0; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --ground: #e6dfd0; --screen: #fdfcf9; --tile: #f6f2ea; --line: #3a342c; --text: #2a2620; --muted: #7a7262;
+  --banana: #f0b429; --banana-hi: #ffe68a; --banana-ink: #1f1405; --banana-deep: #8a5a00;
+  --ok: #3f7d1f; --warn: #a35d00; --bad: #b8321f; --rule: #d6cfc0; color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--ground); color: var(--text); font: 16px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 6%, transparent) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+.wrap { max-width: 920px; margin: 0 auto; display: grid; gap: 14px; }
+
+.screen {
+  background: var(--screen); border: 3px solid var(--line); border-radius: 14px;
+  padding: 22px clamp(16px, 4vw, 30px); box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--line) 18%, transparent);
+  min-width: 0;
+}
+.hinge { height: 10px; margin: 0 18%; border-radius: 0 0 8px 8px; background: color-mix(in srgb, var(--line) 22%, var(--ground)); }
+
+/* top screen */
+.top { display: grid; grid-template-columns: auto 1fr; gap: 22px; align-items: center; }
+.mark { width: 84px; height: 84px; image-rendering: pixelated; }
+.eyebrow { font: 600 13px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 8px 0 6px; font: 700 clamp(28px, 6vw, 40px)/1.05 var(--display); text-wrap: balance; }
+h1 .b { color: var(--banana); }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.lede strong { color: var(--text); font-weight: 700; }
+.count { font: 600 17px/1.3 var(--display); color: var(--banana); margin-top: 8px; }
+
+h2 { font: 600 20px/1.2 var(--display); margin: 0; display: flex; align-items: center; gap: 10px; }
+.step { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; border: 2px solid var(--line); font: 700 15px/1 var(--display); flex: none; }
+.step.done { background: var(--banana); color: var(--banana-ink); border-color: var(--banana); }
+.sub { color: var(--muted); margin: 6px 0 0; font-size: 15px; max-width: 70ch; }
+
+/* tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+.tile {
+  position: relative; display: grid; gap: 4px; align-content: start; text-align: left;
+  background: var(--tile); color: var(--text); border: 3px solid var(--line); border-radius: 12px; padding: 16px 16px 14px;
+  box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--line) 16%, transparent); font: inherit; cursor: pointer;
+}
+.tile:hover, .tile.over { border-color: var(--banana); }
+.tile.over { background: color-mix(in srgb, var(--banana) 14%, var(--tile)); }
+.tile .t { font: 600 17px/1.2 var(--display); }
+.tile .d { font-size: 14px; color: var(--muted); }
+.tile input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.tile:focus-within { outline: 3px solid var(--banana); outline-offset: 2px; }
+.drop { min-height: 132px; border-style: dashed; place-content: center; text-align: center; justify-items: center; }
+.drop .t { font-size: 19px; }
+
+/* chip buttons, like the menu's "A Open" */
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px 9px 9px; min-height: 44px;
+  background: var(--tile); color: var(--text); border: 3px solid var(--line); border-radius: 10px;
+  font: 600 16px/1 var(--display); cursor: pointer; box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--line) 18%, transparent);
+}
+.btn .key { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--line); color: var(--screen); font: 700 14px/1 var(--display); }
+.btn.primary { background: var(--banana); color: var(--banana-ink); border-color: var(--banana); }
+.btn.primary .key { background: var(--banana-ink); color: var(--banana); }
+.btn:hover:not(:disabled) { border-color: var(--banana); }
+.btn:focus-visible { outline: 3px solid var(--banana-hi); outline-offset: 2px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.quiet { padding: 9px 14px; border-width: 2px; font-size: 14px; min-height: 38px; }
+.status { font-size: 14px; color: var(--muted); }
+.status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+
+/* the save list */
+.listhead { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: end; }
+.example { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 14px; padding: 10px 14px; border-radius: 10px; border: 2px dashed var(--banana); color: var(--text); font-size: 14px; }
+.example b { font: 600 14px/1 var(--display); color: var(--banana); letter-spacing: .08em; text-transform: uppercase; }
+.rows { display: grid; gap: 8px; margin-top: 14px; }
+.row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 14px; align-items: center;
+  background: var(--tile); border: 2px solid var(--rule); border-radius: 10px; padding: 12px 14px;
+}
+.row.off { opacity: .55; }
+.row input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--banana); }
+.from { font-size: 13px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.to { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; margin-top: 2px; }
+.to .arrow { color: var(--banana); font-family: var(--display); margin-right: 6px; }
+.note { font-size: 13px; margin-top: 4px; }
+.note.warn { color: var(--warn); } .note.bad { color: var(--bad); } .note.ok { color: var(--ok); }
+.side { display: grid; gap: 6px; justify-items: end; }
+.pill { font: 600 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; padding: 5px 8px; border-radius: 6px; border: 2px solid currentColor; white-space: nowrap; }
+.pill.nds { color: var(--banana); } .pill.ra { color: var(--ok); } .pill.skip { color: var(--muted); } .pill.ask { color: var(--warn); }
+select.sys { font: 14px var(--body); background: var(--screen); color: var(--text); border: 2px solid var(--line); border-radius: 8px; padding: 5px 8px; max-width: 100%; }
+.size { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.empty { margin-top: 14px; padding: 18px; border-radius: 10px; border: 2px dashed var(--rule); color: var(--muted); text-align: center; }
+
+/* where things go */
+.map { width: 100%; border-collapse: collapse; font-size: 14px; }
+.mapwrap { overflow-x: auto; margin-top: 14px; }
+.map th { text-align: left; font: 600 13px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 2px solid var(--rule); }
+.map td { padding: 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.map code, .guide code { font-family: var(--mono); font-size: 13px; background: color-mix(in srgb, var(--banana) 13%, transparent); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 14px; }
+.guide .tile { cursor: default; }
+.guide ol { margin: 6px 0 0; padding-left: 20px; font-size: 15px; display: grid; gap: 6px; }
+.foot { text-align: center; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 560px) {
+  .top { grid-template-columns: 1fr; gap: 12px; }
+  .mark { width: 64px; height: 64px; }
+  .row { grid-template-columns: auto minmax(0, 1fr); }
+  .side { grid-column: 2; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tile, .btn { transition: border-color .12s, background-color .12s; }
+}
+</style>
+<style>
+/* the Guide Maker's own bits (the rest is the Save Mover's look) */
+textarea.games { width: 100%; box-sizing: border-box; min-height: 9em; background: var(--tile); color: var(--text); border: 2px solid var(--rule);
+  border-radius: 10px; padding: 10px 12px; font: 15px/1.5 var(--mono); resize: vertical; }
+select.sys { background: var(--tile); color: var(--text); border: 2px solid var(--rule); border-radius: 8px; padding: 8px 10px; font: 15px var(--body); }
+.gm-row { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--rule); font: 15px/1.4 var(--body); }
+.gm-row .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.gm-row .what { color: var(--muted); font-size: 14px; text-align: right; }
+.gm-row.ok .what { color: var(--ok); }
+.gm-row.bad .what { color: var(--bad); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <section class="screen top" aria-labelledby="title">
+    <svg class="mark" id="mark" viewBox="0 0 14 14" aria-hidden="true" shape-rendering="crispEdges"></svg>
+    <div>
+      <div class="eyebrow">Tools · Guides</div>
+      <h1 id="title"><span class="b">BANANA</span>OS Guide Maker</h1>
+      <p class="lede">Walkthroughs for the <strong>Guide</strong> on BananaOS's second screen, made in this browser from <strong>StrategyWiki</strong> and free game wikis. Name your games, get one zip, copy it onto the card. While a game plays, its guide opens at the level you're on.</p>
+      <div class="count" id="count">No guides made yet</div>
+    </div>
+  </section>
+  <div class="hinge" aria-hidden="true"></div>
+
+  <section class="screen" aria-labelledby="s1">
+    <h2 id="s1"><span class="step">1</span>Name your games</h2>
+    <p class="sub">One per line. The game's file name is best (<code>Super Mario Bros. 2 (USA).nes</code>): the Guide finds a guide by it. Pick the system the games are in.</p>
+    <textarea class="games" id="games" spellcheck="false" aria-label="Games, one per line">Super Mario Bros. 2 (USA).nes</textarea>
+    <div class="bar">
+      <label>System <select class="sys" id="sys" aria-label="System">
+        <option value="nes">NES</option><option value="snes">SNES</option><option value="gb">Game Boy</option><option value="gbc">Game Boy Color</option>
+        <option value="gba">Game Boy Advance</option><option value="nds">Nintendo DS</option><option value="megadrive">Mega Drive</option>
+        <option value="psx">PlayStation</option><option value="n64">Nintendo 64</option><option value="pcengine">PC Engine</option>
+        <option value="mastersystem">Master System</option><option value="gamegear">Game Gear</option><option value="dreamcast">Dreamcast</option><option value="psp">PSP</option>
+      </select></label>
+      <button class="btn primary" id="make" type="button">Make the guides</button>
+      <span class="status" id="makeStatus">About a minute a game: the wikis are asked one page a second.</span>
+    </div>
+  </section>
+
+  <section class="screen" aria-labelledby="s2">
+    <h2 id="s2"><span class="step">2</span>What was found</h2>
+    <p class="sub">StrategyWiki first (walkthroughs), then the game's franchise wiki (the Super Mario Wiki, Zelda Wiki and others: encyclopedia pages per level), only where the wiki's licence is free (CC BY-SA). Text only.</p>
+    <div class="rows" id="rows"><p class="sub">Nothing yet.</p></div>
+  </section>
+
+  <section class="screen" aria-labelledby="s3">
+    <h2 id="s3"><span class="step">3</span>Put them on the card</h2>
+    <p class="sub">The zip holds <code>banana/guides/&lt;system&gt;/&lt;game&gt;/</code>. Copy its <code>banana</code> folder onto the card's big partition, merging folders (File sharing, or a card reader). Then in a game: <strong>Guide</strong>, beside All achievements.</p>
+    <div class="bar">
+      <button class="btn primary" id="download" type="button" disabled>Download the guides zip</button>
+      <span class="status" id="dlStatus">Make some guides first.</span>
+    </div>
+  </section>
+
+  <p class="foot">Runs entirely in your browser: it asks the wikis for their pages and builds the zip here. Guides keep their source and licence (CC BY-SA: credit the wiki and share alike). GameFAQs isn't used: its site no longer serves pages to tools.</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  // ---- the pixel banana (the BananaOS mark's colours) ----
+  const ART = [
+    "...........GG.",
+    "..........GGD.",
+    ".........DYYD.",
+    "........DYHYD.",
+    ".......DYHYYD.",
+    "......DYHYYD..",
+    ".....DYHYYYD..",
+    "...DDYHYYYD...",
+    ".DDYYHYYYDD...",
+    "DYYHHYYYDD....",
+    "DYYYYYDD......",
+    ".DDDDD........",
+  ];
+  const PAL = { G: "#5c7a2a", D: "#8a5a00", Y: "#f0b429", H: "#ffe68a" };
+  const svgNS = "http://www.w3.org/2000/svg";
+  ART.forEach((row, y) => [...row].forEach((c, x) => {
+    if (!PAL[c]) return;
+    const r = document.createElementNS(svgNS, "rect");
+    r.setAttribute("x", x); r.setAttribute("y", y + 1); r.setAttribute("width", 1); r.setAttribute("height", 1);
+    r.setAttribute("fill", PAL[c]); $("mark").appendChild(r);
+  }));
+})();
+</script>
+<script type="module">
+import { makeGuide } from "./core.js";
+const $ = (id) => document.getElementById(id);
+
+// ---- zip (stored, no compression), as the Save Mover makes it ----
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+function dosTime(d) {
+  return { time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+           date: ((Math.max(d.getFullYear(), 1980) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() };
+}
+export function makeZip(files) {
+  const enc = new TextEncoder(); const parts = []; const central = []; let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.path); const data = f.data; const crc = crc32(data); const { time, date } = dosTime(new Date());
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true);
+    h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(h.buffer, name, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+    c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true);
+    c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    central.push(c.buffer, name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((n, p) => n + p.byteLength, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+  e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, e.buffer], { type: "application/zip" });
+}
+
+const made = [];   // { system, folder, md, meta }
+function row(name) {
+  if (!made.length && $("rows").querySelector("p")) $("rows").innerHTML = "";
+  const r = document.createElement("div"); r.className = "gm-row";
+  const n = document.createElement("span"); n.className = "name"; n.textContent = name;
+  const w = document.createElement("span"); w.className = "what"; w.textContent = "Waiting";
+  r.append(n, w); $("rows").append(r);
+  return { set: (text, cls) => { w.textContent = text; r.className = "gm-row" + (cls ? " " + cls : ""); } };
+}
+
+$("make").addEventListener("click", async () => {
+  const names = $("games").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const system = $("sys").value;
+  if (!names.length) { $("makeStatus").textContent = "Name a game first."; return; }
+  $("make").disabled = true;
+  const rows = names.map(row);
+  for (let i = 0; i < names.length; i++) {
+    $("makeStatus").textContent = "Game " + (i + 1) + " of " + names.length;
+    try {
+      const g = await makeGuide(names[i], system, { progress: (t) => rows[i].set(t) });
+      if (!g) { rows[i].set("No guide found (StrategyWiki, nor a free franchise wiki)", "bad"); continue; }
+      made.push({ system, ...g });
+      rows[i].set(g.meta.sections.length + " sections from " + g.meta.source + " · " + Math.round(g.md.length / 1024) + " KB → " + system + "/" + g.folder, "ok");
+    } catch (e) {
+      rows[i].set("Couldn't reach the wiki (" + e.message + "). Try again.", "bad");
+    }
+  }
+  $("make").disabled = false;
+  $("makeStatus").textContent = "Done.";
+  $("count").textContent = made.length + (made.length === 1 ? " guide" : " guides") + " ready";
+  $("download").disabled = !made.length;
+  $("dlStatus").textContent = made.length ? "Ready: " + made.length + (made.length === 1 ? " guide." : " guides.") : "Nothing to download yet.";
+});
+
+$("download").addEventListener("click", () => {
+  const enc = new TextEncoder(), files = [];
+  for (const g of made) {
+    const dir = "banana/guides/" + g.system + "/" + g.folder + "/";
+    files.push({ path: dir + "guide.md", data: enc.encode(g.md) });
+    files.push({ path: dir + "meta.json", data: enc.encode(JSON.stringify(g.meta, null, 1) + "\n") });
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(makeZip(files));
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  a.download = "bananaos-guides-" + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + ".zip";
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+});
+</script>
+</body>
+</html>
