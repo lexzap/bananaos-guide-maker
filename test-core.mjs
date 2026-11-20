@@ -17,6 +17,23 @@ check(t.includes("after.") && !t.includes("NAV"), "text: kept after an <img>, na
 check(t.includes("## Map A") && !t.includes("[edit]"), "text: headings, no edit links");
 check(t.includes("- first\n- second") && t.includes("Item | Where") && t.includes("Key | Jar"), "text: lists and tables");
 check(t.includes("Ref & end.") && !t.includes("[1]"), "text: entities decoded, references left out");
+// a controls table as StrategyWiki has them (the same as guide-fetch's test): buttons as small pictures, a list in a
+// cell, platform columns
+const c = htmlToText(`<table><tr><th>DS</th><th>Switch</th><th>PS5</th><th>Action</th></tr>
+<tr><td><img alt="Neutral dpad" width="24" height="24"></td><td><img alt="Neutral Dpad" width="24"> or
+<img alt="Neutral Lstick" width="24"></td><td>x</td><td><ul><li>Move</li><li>Select menu items</li></ul></td></tr>
+<tr><td><img alt="Y button" width="24"></td><td><img alt="Y Button" width="24"></td><td><img alt="Square button" width="24"></td>
+<td>Attack</td></tr>
+<tr><td>&#8593; + <img alt="A button" width="24"></td><td>-</td><td>-</td><td>Bullet soul</td></tr></table>
+<p>A picture: <img alt="A big map" width="400" height="300"> after it. Stars: &#9733; &#10003;</p>
+<table><tr><th>Item</th><th>Price</th><th>Where</th></tr><tr><td>Potion</td><td>50</td><td>Shop</td></tr></table>`);
+check(c.includes("DS | Action"), "controls table: the first platform column and the action");
+check(c.includes("D-pad | Move; Select menu items"), "controls table: a button picture as its name, a list in a cell on its row");
+check(c.includes("Y | Attack") && !c.includes("Square"), "controls table: the other platforms left out");
+check(c.includes("Up + A | Bullet soul"), "symbols: an arrow the pixel font lacks as a word");
+check(!c.includes("A big map") && c.includes("A picture: after it."), "a big picture still left out");
+check(c.includes("Stars: * yes"), "symbols: others as ASCII or words");
+check(c.includes("Potion | 50 | Shop"), "a table without platform columns keeps all its columns");
 
 const fake = async (base, p) => {
   if (p.list === "search") return { query: { search: (p.srwhat === "title" ? ["Super Mario Bros. 2/Items", "Super Mario Bros 2", "Super Mario Bros. 3"] : []).map((title) => ({ title })) } };

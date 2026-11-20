@@ -138,47 +138,97 @@ function unescape(s) {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) =>
     e[0] === "#" ? String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)) : ENT[e.toLowerCase()] ?? m);
 }
+// a button or key picture's words, as guide-fetch's Text.icon_name: "Y button" -> "Y", "Neutral dpad" -> "D-pad"
+export function iconName(alt) {
+  return alt.trim().replace(/\.(png|svg|gif|jpe?g)$/i, "").replace(/\b(button|key|icon)\b/gi, "").replace(/\bneutral\b/gi, "")
+    .replace(/\bd-?pad\b/gi, "D-pad").replace(/\b([lr])-?stick\b/gi, (m, c) => c.toUpperCase() + "-stick").replace(/\s+/g, " ").trim();
+}
+// a controls table's platform columns ("DS | Switch | PS5 | Xbox | Windows | Action"), as guide-fetch's
+const PLATFORMS = /^(nes|snes|n64|gb|gbc|gba|ds|3ds|wii|wii u|gamecube|gcn|switch|ps[1-5]?|playstation( [1-5])?|psp|vita|xbox( 360| one| series x\|s)?|pc|windows|mac|linux|keyboard|mouse|arcade|genesis|mega drive|saturn|dreamcast|master system|game gear|steam deck|controller|gamepad|ios|android)$/i;
+function tableRows(rows) {
+  if (!rows.length) return [];
+  const head = rows[0];
+  const plat = head.map((c, i) => (PLATFORMS.test(c.trim()) ? i : -1)).filter((i) => i >= 0);
+  if (plat.length >= 2 && head.length >= 3 && plat[0] !== head.length - 1) {
+    const keep = [plat[0], head.length - 1];
+    rows = rows.map((r) => (r.length === head.length ? keep.map((i) => r[i] ?? "") : r));
+  }
+  return rows.filter((r) => r.some((c) => c.trim())).map((r) => r.join(" | "));
+}
+// symbols the handhelds' pixel font has no glyph for, as guide-fetch's Text.SYMBOLS
+const SYMBOLS = { "←": "Left", "↑": "Up", "→": "Right", "↓": "Down", "↖": "Up-Left", "↗": "Up-Right", "↘": "Down-Right",
+  "↙": "Down-Left", "⇐": "<=", "⇒": "=>", "⬆": "Up", "⬇": "Down", "⬅": "Left", "➡": "Right", "▲": "Up", "▼": "Down",
+  "◀": "Left", "▶": "Right", "★": "*", "☆": "*", "♥": "heart", "♡": "heart", "♪": "", "●": "-", "○": "o", "■": "-",
+  "□": "-", "✓": "yes", "✔": "yes", "✗": "no", "✘": "no" };
+// MediaWiki's page HTML as plain text, as guide-fetch's Text: headings '## ', list items '- ', table rows as cells
+// joined by ' | ' (a controls table: its first platform column and the action), button pictures as their names, a
+// list or a paragraph inside a cell kept on its row ("; " between)
 export function htmlToText(html) {
   const out = [];
-  let line = [], skip = 0, cells = null;
-  const stack = [];
+  let line = [], skip = 0, cells = null, inCell = false;
+  const stack = [], tables = [];
   const flush = (prefix = "") => {
     const t = line.join("").replace(/\s+/g, " ").trim();
     line = [];
     if (t) out.push(prefix + t);
   };
+  const cellBreak = () => {
+    const t = line.join("").trimEnd();
+    if (t.trim() && !t.endsWith(";")) line = [t, "; "];
+  };
+  const attr = (a, n) => (a.match(new RegExp("\\b" + n + "=\"([^\"]*)\"")) || [])[1] || "";
   const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*?)(\/?)>|([^<]+)/g;
   let m;
   while ((m = re.exec(html))) {
     if (m[5] !== undefined) { if (!skip) line.push(unescape(m[5])); continue; }
     if (!m[2]) continue;
     const tag = m[2].toLowerCase(), closing = m[1] === "/", attrs = m[3] || "";
-    if (VOID.has(tag)) { if (tag === "br" && !skip) flush(); continue; }
+    if (VOID.has(tag)) {
+      if (skip || closing) continue;
+      if (tag === "br") { if (inCell) cellBreak(); else flush(); }
+      else if (tag === "img") {         // a small picture (a button): its name
+        const w = parseInt(attr(attrs, "width"), 10) || 0, name = iconName(unescape(attr(attrs, "alt")));
+        if (name && w > 0 && w <= 64) line.push(" " + name + " ");
+      }
+      continue;
+    }
     if (!closing) {
-      const cls = (attrs.match(/class="([^"]*)"/) || [])[1] || "", id = (attrs.match(/id="([^"]*)"/) || [])[1] || "";
+      const cls = attr(attrs, "class"), id = attr(attrs, "id");
       const hide = SKIP.has(tag) || SKIP_CLASS.test(cls) || id === "toc";
       if (m[4] === "/") continue;   // (<tag/>)
       stack.push(hide);
       if (hide) { skip++; continue; }
       if (skip) continue;
-      if (["p", "div", "dl", "dd", "dt"].includes(tag)) { flush(); if (tag === "p") out.push(""); }
+      if (inCell && ["p", "div", "li", "dl", "dd", "dt", "ul", "ol"].includes(tag)) cellBreak();
+      else if (["p", "div", "dl", "dd", "dt"].includes(tag)) { flush(); if (tag === "p") out.push(""); }
       else if (/^h[2-6]$/.test(tag)) { flush(); out.push(""); }
       else if (tag === "li") flush();
+      else if (tag === "table") { flush(); tables.push([]); }
       else if (tag === "tr") { flush(); cells = []; }
-      else if (tag === "td" || tag === "th") line = [];
+      else if (tag === "td" || tag === "th") { line = []; inCell = true; }
       continue;
     }
     const hide = stack.length ? stack.pop() : false;
     if (hide) { skip--; continue; }
     if (skip) continue;
-    if (/^h[2-6]$/.test(tag)) { flush("#".repeat(Math.min(+tag[1], 4)) + " "); out.push(""); }
+    if (inCell && ["li", "p", "div", "ul", "ol", "dl", "dd", "dt"].includes(tag)) cellBreak();
+    else if (/^h[2-6]$/.test(tag)) { flush("#".repeat(Math.min(+tag[1], 4)) + " "); out.push(""); }
     else if (tag === "li") flush("- ");
-    else if (tag === "td" || tag === "th") { const t = line.join("").replace(/\s+/g, " ").trim(); line = []; if (cells) cells.push(t); }
-    else if (tag === "tr") { if (cells && cells.some(Boolean)) out.push(cells.join(" | ")); cells = null; }
+    else if (tag === "td" || tag === "th") {
+      const t = line.join("").replace(/\s+/g, " ").trim().replace(/;$/, "").trim();
+      line = []; inCell = false;
+      if (cells) cells.push(t.replaceAll(" | ", " / "));
+    }
+    else if (tag === "tr") {
+      if (cells && cells.some(Boolean)) { if (tables.length) tables[tables.length - 1].push(cells); else out.push(cells.join(" | ")); }
+      cells = null;
+    }
+    else if (tag === "table" && tables.length) { flush(); out.push(...tableRows(tables.pop())); out.push(""); }
     else if (["p", "div", "table", "ul", "ol", "dl"].includes(tag)) { flush(); if (["p", "table", "ul", "ol"].includes(tag)) out.push(""); }
   }
   flush();
-  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  const s = [...out.join("\n")].map((c) => SYMBOLS[c] ?? c).join("");
+  return s.replace(/\n{3,}/g, "\n\n").trim() + "\n";
 }
 
 // a game's guide: StrategyWiki first, else its franchise's wiki when free; null when neither has one.
