@@ -132,7 +132,7 @@ export async function freeLicence(base, call = api) {
 // walker, no DOM (the same in a page and in Node).
 const SKIP = new Set(["script", "style", "sup", "figure", "noscript"]);
 const VOID = new Set(["br", "img", "hr", "meta", "link", "input", "wbr", "source", "area", "col", "embed", "param", "track"]);
-const SKIP_CLASS = /\b(mw-editsection|toc|navbox|noprint|reference|thumb|mw-empty-elt|metadata|hatnote)\b/;
+const SKIP_CLASS = /\b(mw-editsection|toc|navbox|nav_box|series_box|noprint|reference|thumb|mw-empty-elt|metadata|hatnote)\b/;
 const ENT = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…", rsquo: "’", lsquo: "‘", rdquo: "”", ldquo: "“", times: "×" };
 function unescape(s) {
   return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) =>
@@ -233,6 +233,30 @@ export function htmlToText(html) {
 
 // a game's guide: StrategyWiki first, else its franchise's wiki when free; null when neither has one.
 // progress(text) is told each step. -> { title, folder (slug), md, meta }
+// a compilation's games (A Link to the Past & Four Swords), as guide-fetch's included_games: the guides its main page
+// lists (a list item that is a link with StrategyWiki's guide_link class), before the series box, at most 4, each with
+// pages of its own -> [[title, pages]]
+export async function includedGames(game, call = api) {
+  const d = await call(STRATEGYWIKI, { action: "parse", page: game, prop: "text", redirects: "1" });
+  let page = (d.parse && d.parse.text["*"]) || "";
+  const cut = page.search(/<div[^>]*class="[^"]*\bseries_box\b/);
+  if (cut >= 0) page = page.slice(0, cut);
+  const games = [];
+  for (const m of page.matchAll(/<li>\s*(<a [^>]*class="[^"]*\bguide_link\b[^"]*"[^>]*>)/g)) {
+    const t = (m[1].match(/title="([^"]+)"/) || [])[1];
+    const g = t && unescape(t);
+    if (g && g !== game && !games.includes(g)) games.push(g);
+  }
+  const out = [];
+  for (const g of games.slice(0, 4)) {
+    const pages = await strategyWikiPages(g, call);
+    if (pages.length > 1) out.push([g, pages]);
+  }
+  return out;
+}
+// a game's name without its series: "The Legend of Zelda: A Link to the Past" -> "A Link to the Past"
+export const shortName = (game) => game.split(": ").pop();
+
 export async function makeGuide(name, system, { raGame = 0, progress = () => {}, call = api } = {}) {
   let base = STRATEGYWIKI, src = { name: "StrategyWiki", url: SW_WIKI, licence: SW_LICENCE, licenceUrl: SW_LICENCE_URL }, pages;
   progress("Looking for " + name + " on StrategyWiki");
@@ -256,13 +280,18 @@ export async function makeGuide(name, system, { raGame = 0, progress = () => {},
     }
   }
   if (!title || !pages || !pages.length) return null;
+  // [the game, a page, its game's short name]: a compilation's own page, then its games' guides
+  const items = pages.map((t) => [title, t, null]);
+  if (pages.length === 1 && base === STRATEGYWIKI)
+    for (const [g, gp] of await includedGames(title, call)) items.push(...gp.map((t) => [g, t, shortName(g)]));
   const body = [], sections = [];
-  for (let i = 0; i < pages.length; i++) {
-    const t = pages[i];
-    progress("Page " + (i + 1) + " of " + pages.length + ": " + t);
+  for (let i = 0; i < items.length; i++) {
+    const [game, t, part] = items[i];
+    progress("Page " + (i + 1) + " of " + items.length + ": " + t);
     const d = await call(base, { action: "parse", page: t, prop: "text|revid", disableeditsection: "1", disabletoc: "1", redirects: "1" });
     if (!d.parse) continue;
-    const sec = t === title ? "Overview" : t.startsWith(title + "/") ? t.slice(title.length + 1) : t.endsWith(" (" + title + ")") ? t.slice(0, -(title.length + 3)) : t;
+    const s0 = t === game ? "Overview" : t.startsWith(game + "/") ? t.slice(game.length + 1) : t.endsWith(" (" + game + ")") ? t.slice(0, -(game.length + 3)) : t;
+    const sec = part ? part + ": " + s0 : s0;
     body.push("# " + sec + "\n\n" + htmlToText(d.parse.text["*"]));
     sections.push({ name: sec, page: t, url: src.url + encodeURIComponent(t.replace(/ /g, "_")), revid: d.parse.revid || 0 });
   }

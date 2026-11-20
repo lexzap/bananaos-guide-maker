@@ -1,6 +1,6 @@
 // node web/guide-maker/test-core.mjs [--live]: the Guide Maker's core against made-up wiki answers (no network), and
 // with --live against the real StrategyWiki and Super Mario Wiki. The same rules as guide-fetch, so the same checks.
-import { slug, words, score, search, wikiPages, freeLicence, htmlToText, makeGuide } from "./core.js";
+import { slug, words, score, search, wikiPages, freeLicence, htmlToText, makeGuide, includedGames, shortName } from "./core.js";
 
 let fails = 0;
 const check = (ok, what) => { console.log((ok ? "  ok    " : "  FAIL  ") + what); if (!ok) fails++; };
@@ -34,6 +34,26 @@ check(c.includes("Up + A | Bullet soul"), "symbols: an arrow the pixel font lack
 check(!c.includes("A big map") && c.includes("A picture: after it."), "a big picture still left out");
 check(c.includes("Stars: * yes"), "symbols: others as ASCII or words");
 check(c.includes("Potion | 50 | Shop"), "a table without platform columns keeps all its columns");
+
+// a compilation (as guide-fetch's test): its list's guides with pages of their own; not its facts box's, text's or
+// series box's links
+const PACK = '<div class="nav_box header_nav noprint"><b>Test Pack</b></div>' +
+  '<table><tr><td>Followed by</td><td><a href="/wiki/Next_Game" class="guide_link" title="Next Game">N</a></td></tr></table>' +
+  '<p>Two: <a href="/wiki/Quest" class="guide_link" title="Quest">Q</a>.</p>' +
+  '<ul><li><a href="/wiki/Quest" class="guide_link guide_link-cs5" title="Quest">Quest</a></li>' +
+  '<li><a href="/wiki/Pageless" class="guide_link" title="Pageless">Pageless</a></li></ul>' +
+  '<div class="series_box nav_box"><ul><li><a href="/wiki/Next_Game" class="guide_link" title="Next Game">N</a></li></ul></div>';
+const packPages = { "Test Pack": PACK, "Quest": "<p>Quest.</p>", "Quest/Walkthrough": "<p>Go.</p>", "Next Game": "<p>No.</p>",
+  "Next Game/Walkthrough": "<p>No.</p>", "Pageless": "<p>One page.</p>" };
+const packCall = async (base, p) => p.list === "allpages" ? { query: { allpages: Object.keys(packPages).filter((t) => t.startsWith(p.apprefix)).map((title) => ({ title })) } }
+  : p.list === "search" ? { query: { search: p.srwhat === "title" ? [{ title: "Test Pack" }] : [] } }
+  : { parse: { title: p.page, revid: 1, text: { "*": packPages[p.page] ?? "" } } };
+const inc = await includedGames("Test Pack", packCall);
+check(inc.map(([g]) => g).join() === "Quest", "compilation: only its list's guides with pages: " + inc.map(([g]) => g).join());
+check(shortName("The Legend of Zelda: Four Swords") === "Four Swords", "compilation: a game's name without its series");
+const pack = await makeGuide("Test Pack", "gba", { call: packCall });
+check(pack && pack.meta.sections.map((x) => x.name).join("|") === "Overview|Quest: Overview|Quest: Walkthrough",
+  "compilation: its page, then its games' sections named after them: " + (pack && pack.meta.sections.map((x) => x.name).join("|")));
 
 const fake = async (base, p) => {
   if (p.list === "search") return { query: { search: (p.srwhat === "title" ? ["Super Mario Bros. 2/Items", "Super Mario Bros 2", "Super Mario Bros. 3"] : []).map((title) => ({ title })) } };
